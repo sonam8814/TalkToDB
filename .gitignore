@@ -18,6 +18,7 @@ env/
 # Environment variables
 # ======================
 .env
+backend/.env
 .env.*
 
 # ======================
