@@ -1,7 +1,7 @@
 # ======================
 # Python
 # ======================
-backend/__pycache__/
+__pycache__/
 backend/*.pyc
 backend/*.pyo
 backend/*.pyd
@@ -9,7 +9,6 @@ backend/*.pyd
 # ======================
 # Virtual Environment
 # ======================
-backend/venv/
 venv/
 env/
 .venv/
@@ -18,7 +17,6 @@ env/
 # Environment variables
 # ======================
 .env
-backend/.env
 .env.*
 
 # ======================
