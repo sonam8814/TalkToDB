@@ -26,7 +26,7 @@ from langchain.prompts       import PromptTemplate
 from chroma_index import retrieve_relevant_tables, get_schema_context
 from database     import execute_query
 from tools        import get_all_tools
-from prompts      import SQL_GENERATION_PROMPT, SUMMARISE_PROMPT
+from prompts      import SQL_GENERATION_PROMPT, SUMMARISE_PROMPT, INTENT_PROMPT
 
 load_dotenv()
 
@@ -215,6 +215,23 @@ def run_agent(question: str, use_react: bool = False) -> AgentResult:
 
     llm = _build_llm()
     logs.append(f"[init] Model: {OLLAMA_MODEL}  |  Mode: {'react' if use_react else 'direct'}")
+
+    # ── Intent classification: skip DB pipeline for non-database questions ──
+    try:
+        intent_chain = INTENT_PROMPT | llm
+        intent = str(intent_chain.invoke({"question": question})).strip().upper()
+        logs.append(f"[intent] Classification: {intent}")
+    except Exception:
+        intent = "DB"  # default to DB on failure so we don't block real queries
+
+    if "DB" not in intent:
+        elapsed = int((time.monotonic() - t0) * 1000)
+        return AgentResult(
+            question=question, relevant_tables=[], sql="",
+            rows=[], row_count=0,
+            summary="I'm an HR database assistant. Please ask me a question about employees, departments, salaries, or performance reviews.",
+            error=None, logs=logs, duration_ms=elapsed,
+        )
 
     try:
         if use_react:

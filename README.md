@@ -70,3 +70,12 @@ The demo database should include at least the following tables:
 │   └── tailwind.config.js
 ├── docker-compose.yml
 └── README.md
+
+"""
+chroma_index.py  –  ChromaDB schema indexing and semantic table retrieval.
+
+Responsibilities:
+  - Build and persist a vector index of table descriptions
+  - Retrieve the most relevant tables for a natural-language question
+  - Expose raw DDL schemas for the retrieved tables
+"""

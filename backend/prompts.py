@@ -1,5 +1,17 @@
 from langchain.prompts import PromptTemplate
 
+# ── Intent classification prompt ─────────────────────────────────────────────
+INTENT_PROMPT = PromptTemplate(
+    input_variables=["question"],
+    template="""You are a classifier. Decide whether the following user message is a question about an HR database (employees, departments, salaries, performance reviews, hiring, etc.) or NOT.
+
+Reply with EXACTLY one word: "DB" if it is a database/HR question, or "GENERAL" if it is not.
+
+User message: "{question}"
+
+Answer:""",
+)
+
 # ── SQL generation prompt ─────────────────────────────────────────────────────
 SQL_GENERATION_PROMPT = PromptTemplate(
     input_variables=["schema", "question", "dialect"],

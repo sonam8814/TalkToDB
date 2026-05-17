@@ -6,7 +6,7 @@ import InputBar      from './components/InputBar'
 import SidePanel     from './components/SidePanel'
 import './index.css'
 
-const API = 'http://localhost:8001'
+const API = 'http://localhost:8000'
 
 const BOOT_LINES = [
   '╔══════════════════════════════════════════════════════════╗',
