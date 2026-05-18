@@ -1,5 +1,5 @@
-# Content for the PRD.md file
-prd_content = """# Product Requirements Document: AI-Powered "Talk to Your Database" Agent
+# Talk to DB
+
 
 ## Project Overview (Plain English)
 This project builds a "Magic Robot Librarian" (an AI Agent) that allows non-technical users to ask questions about their company's HR data in plain English. The agent translates the English question into a specialized database code (SQL), finds the right "shelves" (tables) in the library, fetches the actual numbers, and presents them on a hacker-style terminal screen.
