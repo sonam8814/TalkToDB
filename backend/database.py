@@ -6,7 +6,10 @@ from contextlib import contextmanager
 from typing import Generator
 
 import chromadb
+import sqlparse
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+from sqlparse import tokens as T
+from sqlparse.sql import Identifier, IdentifierList
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR   = os.path.dirname(__file__)
@@ -36,19 +39,9 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
 def execute_query(sql: str) -> list[dict]:
     """
     Execute a SELECT query and return rows as a list of dicts.
-    Raises ValueError for any non-SELECT statement (belt-and-suspenders guard).
+    Uses sqlparse-based structural validation before execution.
     """
-    normalised = sql.strip().upper()
-    forbidden  = {"DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE", "CREATE", "REPLACE"}
-
-    for kw in forbidden:
-        if kw in normalised:
-            raise ValueError(
-                f"Forbidden keyword '{kw}' detected. Only SELECT statements are permitted."
-            )
-
-    if not normalised.startswith("SELECT"):
-        raise ValueError("Only SELECT statements are permitted.")
+    sql = validate_sql(sql)
 
     with get_db() as conn:
         cursor = conn.execute(sql)
@@ -111,6 +104,107 @@ TABLE_SCHEMAS: dict[str, str] = {
         ");"
     ),
 }
+
+# ── SQL validation (sqlparse-based) ──────────────────────────────────────────
+
+ALLOWED_TABLES = frozenset(TABLE_SCHEMAS.keys())
+
+_FORBIDDEN_KEYWORDS = frozenset({
+    "ATTACH", "DETACH", "REINDEX", "VACUUM", "PRAGMA",
+})
+
+
+def _extract_table_names(stmt) -> set[str]:
+    """Extract table names referenced in FROM / JOIN clauses."""
+    tables: set[str] = set()
+    _walk_tokens_for_tables(stmt, tables)
+    return tables
+
+
+def _walk_tokens_for_tables(token_group, tables: set[str]) -> None:
+    expect_table = False
+    for token in token_group.tokens:
+        if token.is_whitespace:
+            continue
+
+        if token.ttype is T.Keyword:
+            upper = token.normalized.upper()
+            if upper == "FROM" or "JOIN" in upper:
+                expect_table = True
+                continue
+            else:
+                expect_table = False
+
+        if expect_table:
+            if isinstance(token, IdentifierList):
+                for ident in token.get_identifiers():
+                    if isinstance(ident, Identifier):
+                        name = ident.get_real_name()
+                        if name:
+                            tables.add(name.lower())
+                expect_table = False
+            elif isinstance(token, Identifier):
+                name = token.get_real_name()
+                if name:
+                    tables.add(name.lower())
+                expect_table = False
+            elif token.ttype is T.Name:
+                tables.add(token.normalized.lower())
+                expect_table = False
+            else:
+                expect_table = False
+
+        if hasattr(token, "tokens") and not isinstance(token, Identifier):
+            _walk_tokens_for_tables(token, tables)
+
+
+def validate_sql(sql: str) -> str:
+    """
+    Parse *sql* with sqlparse and structurally verify it is a single, safe
+    SELECT against the known schema.  Returns cleaned SQL or raises ValueError.
+    """
+    sql = sql.strip()
+    if not sql:
+        raise ValueError("Empty SQL statement.")
+
+    try:
+        parsed = sqlparse.parse(sql)
+    except Exception as exc:
+        raise ValueError(f"SQL parse error: {exc}")
+
+    statements = [s for s in parsed if str(s).strip()]
+    if len(statements) != 1:
+        raise ValueError("Exactly one SQL statement is permitted.")
+
+    stmt = statements[0]
+
+    if stmt.get_type() != "SELECT":
+        raise ValueError(
+            f"Only SELECT statements are permitted "
+            f"(got '{stmt.get_type() or 'UNKNOWN'}')."
+        )
+
+    for token in stmt.flatten():
+        upper = token.normalized.upper()
+        if token.ttype is T.DML and upper != "SELECT":
+            raise ValueError(
+                f"Forbidden operation '{upper}'. Only SELECT is permitted."
+            )
+        if token.ttype is T.DDL:
+            raise ValueError(f"Forbidden DDL operation '{upper}'.")
+        if token.ttype is T.Keyword and upper in _FORBIDDEN_KEYWORDS:
+            raise ValueError(f"Forbidden keyword '{upper}'.")
+        if token.ttype is T.Name and upper == "LOAD_EXTENSION":
+            raise ValueError("Forbidden function 'load_extension'.")
+
+    unknown = _extract_table_names(stmt) - ALLOWED_TABLES
+    if unknown:
+        raise ValueError(
+            f"Unknown table(s): {', '.join(sorted(unknown))}. "
+            f"Allowed: {', '.join(sorted(ALLOWED_TABLES))}."
+        )
+
+    return sql
 
 
 def _build_chroma_collection() -> chromadb.Collection:

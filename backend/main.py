@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from agent        import run_agent, AgentResult
 from chroma_index import get_all_table_info, reset_index, get_chroma_collection
-from database     import execute_query
+from database     import execute_query, get_db
 
 load_dotenv()
 
@@ -185,11 +185,20 @@ def list_tables():
 def get_schema():
     """Return live column info from SQLite PRAGMA."""
     try:
-        tables  = execute_query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-        schema  = {}
-        for t in tables:
-            name           = t["name"]
-            schema[name]   = execute_query(f"PRAGMA table_info({name})")
+        with get_db() as conn:
+            cursor = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+            )
+            table_names = [row["name"] for row in cursor.fetchall()]
+
+            schema = {}
+            for name in table_names:
+                if not all(c.isalnum() or c == "_" for c in name):
+                    continue
+                pragma = conn.execute(f"PRAGMA table_info([{name}])")
+                cols   = [desc[0] for desc in pragma.description]
+                schema[name] = [dict(zip(cols, row)) for row in pragma.fetchall()]
+
         return {"schema": schema}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

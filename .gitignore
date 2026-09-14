@@ -60,4 +60,3 @@ outputs/
 # Docker (optional)
 # ======================
 *.env
-.claude

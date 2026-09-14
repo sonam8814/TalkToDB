@@ -79,3 +79,14 @@ Responsibilities:
   - Retrieve the most relevant tables for a natural-language question
   - Expose raw DDL schemas for the retrieved tables
 """
+// Backend
+cd ~/Desktop/ai-sql-agent
+source .venv/bin/activate
+cd backend
+../.venv/bin/python3 -m uvicorn main:app --reload --port 8000
+
+// Frontend
+cd /Users/sonamjha/Desktop/ai-sql-agent/frontend
+
+npm install
+npm run dev

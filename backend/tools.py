@@ -12,7 +12,7 @@ import json
 import os
 from typing import Type
 
-from langchain.tools import BaseTool
+from langchain_classic.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from chroma_index import retrieve_relevant_tables, get_schema_context, TABLE_CATALOGUE

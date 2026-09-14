@@ -20,11 +20,11 @@ from typing import Optional
 
 from dotenv  import load_dotenv
 from langchain_ollama        import OllamaLLM
-from langchain.agents        import AgentExecutor, create_react_agent
-from langchain.prompts       import PromptTemplate
+from langchain_classic.agents  import AgentExecutor, create_react_agent
+from langchain_core.prompts    import PromptTemplate
 
 from chroma_index import retrieve_relevant_tables, get_schema_context
-from database     import execute_query
+from database     import execute_query, validate_sql
 from tools        import get_all_tools
 from prompts      import SQL_GENERATION_PROMPT, SUMMARISE_PROMPT, INTENT_PROMPT
 
@@ -37,29 +37,11 @@ OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0"))
 OLLAMA_TIMEOUT     = int(os.getenv("OLLAMA_TIMEOUT", "120"))
 MAX_AGENT_STEPS    = 6
 
-# ── Forbidden keyword guard ───────────────────────────────────────────────────
-_FORBIDDEN = re.compile(
-    r"\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|CREATE|REPLACE|ATTACH)\b",
-    re.IGNORECASE,
-)
-
-
 def _validate_sql(raw: str) -> str:
-    """Strip markdown, assert SELECT-only, return clean SQL."""
+    """Strip markdown fences, then structurally validate via sqlparse."""
     sql = re.sub(r"```(?:sql)?", "", raw, flags=re.IGNORECASE)
     sql = sql.replace("```", "").strip().rstrip(";").strip() + ";"
-
-    match = _FORBIDDEN.search(sql)
-    if match:
-        raise ValueError(
-            f"Security violation — forbidden keyword '{match.group()}' detected. "
-            "Only SELECT statements are permitted."
-        )
-    if not sql.upper().lstrip().startswith("SELECT"):
-        raise ValueError(
-            f"Agent returned a non-SELECT statement. Rejected for safety.\nRaw: {raw[:200]}"
-        )
-    return sql
+    return validate_sql(sql)
 
 
 # ── LLM initialisation ────────────────────────────────────────────────────────
